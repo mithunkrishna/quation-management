@@ -65,22 +65,18 @@ jobs:
           USER: ${{ secrets.CPANEL_USERNAME }}
           APP_TARGET: ${{ secrets.CPANEL_TARGET }}
         run: |
-          lftp <<EOF
-          set cmd:fail-exit yes
-          set sftp:connect-program "ssh -a -x -i $HOME/.ssh/deploy_key -p $PORT -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o StrictHostKeyChecking=yes"
-          set sftp:auto-confirm no
-          open sftp://$USER@$HOST:$PORT
-
-          mirror -R --verbose \
-            --exclude-glob .git/ \
-            --exclude-glob .github/ \
-            --exclude-glob .env \
-            --exclude-glob vendor/ \
-            --exclude-glob node_modules/ \
-            ./quation-management/ "$APP_TARGET/"
-
+          sftp -i ~/.ssh/deploy_key \
+            -P "$PORT" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            "$USER@$HOST" <<EOF
+          mkdir $APP_TARGET
+          put -r quation-management/* $APP_TARGET/
           bye
           EOF
+
 
       - name: Prepare Public Files
         run: |
@@ -96,23 +92,26 @@ jobs:
           sed -i "s#__DIR__.'/../storage/framework/maintenance.php'#__DIR__.'/../../quation-management/storage/framework/maintenance.php'#" \
             "$RUNNER_TEMP/laravel-public/index.php"
 
-      - name: Upload Public Files
+      
+      - name: Upload Public Website Files
         env:
           HOST: ${{ secrets.CPANEL_HOST }}
           PORT: ${{ secrets.CPANEL_PORT }}
           USER: ${{ secrets.CPANEL_USERNAME }}
           PUBLIC_TARGET: ${{ secrets.CPANEL_PUBLIC_TARGET }}
         run: |
-          lftp <<EOF
-          set sftp:connect-program "ssh -a -x -i $HOME/.ssh/deploy_key -p $PORT -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o StrictHostKeyChecking=yes"
-          set sftp:auto-confirm no
-          open -u "$USER" sftp://$HOST
-
-          mirror -R --verbose \
-            "$RUNNER_TEMP/laravel-public/" "$PUBLIC_TARGET/"
-
+          sftp -i ~/.ssh/deploy_key \
+            -P "$PORT" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            "$USER@$HOST" <<EOF
+          mkdir $PUBLIC_TARGET
+          put -r public_html/quation-management/* $PUBLIC_TARGET/
           bye
           EOF
+
 
       - name: Install Laravel Dependencies
         env:
