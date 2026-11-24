@@ -81,7 +81,7 @@ jobs:
       - name: Prepare Public Files
         run: |
           mkdir -p "$RUNNER_TEMP/laravel-public"
-          cp -a public/. "$RUNNER_TEMP/laravel-public/"
+          cp -a public_html/quation-management/. "$RUNNER_TEMP/laravel-public/"
 
           sed -i "s#__DIR__.'/../vendor/autoload.php'#__DIR__.'/../../quation-management/vendor/autoload.php'#" \
             "$RUNNER_TEMP/laravel-public/index.php"
