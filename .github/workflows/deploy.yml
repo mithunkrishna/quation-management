@@ -113,6 +113,7 @@ jobs:
           EOF
 
 
+      
       - name: Install Laravel Dependencies
         env:
           HOST: ${{ secrets.CPANEL_HOST }}
@@ -122,7 +123,9 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key \
             -p "$PORT" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o StrictHostKeyChecking=yes \
             "$USER@$HOST" \
-            "cd '$APP_TARGET' && composer install --no-dev --optimize-autoloader --no-interaction"
+            "cd '$APP_TARGET' && /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader"
