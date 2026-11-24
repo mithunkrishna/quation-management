@@ -44,7 +44,19 @@ jobs:
 
       - name: Install SFTP
         run: sudo apt-get update && sudo apt-get install -y lftp
-
+      - name: Test SSH Authentication
+        env:
+          HOST: ${{ secrets.CPANEL_HOST }}
+          PORT: ${{ secrets.CPANEL_PORT }}
+          USER: ${{ secrets.CPANEL_USERNAME }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -p "$PORT" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            "$USER@$HOST" "echo SSH authentication successful"
       
       - name: Upload Laravel Application
         env:
