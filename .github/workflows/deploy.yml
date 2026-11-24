@@ -1,0 +1,115 @@
+
+name: Deploy Laravel Website to cPanel
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get GitHub Code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Create Deployment Directories
+        env:
+          HOST: ${{ secrets.CPANEL_HOST }}
+          PORT: ${{ secrets.CPANEL_PORT }}
+          USER: ${{ secrets.CPANEL_USERNAME }}
+          APP_TARGET: ${{ secrets.CPANEL_TARGET }}
+          PUBLIC_TARGET: ${{ secrets.CPANEL_PUBLIC_TARGET }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -p "$PORT" \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            "$USER@$HOST" \
+            "mkdir -p '$APP_TARGET' '$PUBLIC_TARGET'"
+
+      - name: Install SFTP
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Upload Laravel Application
+        env:
+          HOST: ${{ secrets.CPANEL_HOST }}
+          PORT: ${{ secrets.CPANEL_PORT }}
+          USER: ${{ secrets.CPANEL_USERNAME }}
+          APP_TARGET: ${{ secrets.CPANEL_TARGET }}
+        run: |
+          lftp <<EOF
+          set sftp:connect-program "ssh -a -x -i $HOME/.ssh/deploy_key -p $PORT -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o StrictHostKeyChecking=yes"
+          set sftp:auto-confirm no
+          open -u "$USER" sftp://$HOST
+
+          mirror -R --verbose \
+            --exclude-glob .git/ \
+            --exclude-glob .github/ \
+            --exclude-glob .env \
+            --exclude-glob vendor/ \
+            --exclude-glob node_modules/ \
+            ./ "$APP_TARGET/"
+
+          bye
+          EOF
+
+      - name: Prepare Public Files
+        run: |
+          mkdir -p "$RUNNER_TEMP/laravel-public"
+          cp -a public/. "$RUNNER_TEMP/laravel-public/"
+
+          sed -i "s#__DIR__.'/../vendor/autoload.php'#__DIR__.'/../../quation-management/vendor/autoload.php'#" \
+            "$RUNNER_TEMP/laravel-public/index.php"
+
+          sed -i "s#__DIR__.'/../bootstrap/app.php'#__DIR__.'/../../quation-management/bootstrap/app.php'#" \
+            "$RUNNER_TEMP/laravel-public/index.php"
+
+          sed -i "s#__DIR__.'/../storage/framework/maintenance.php'#__DIR__.'/../../quation-management/storage/framework/maintenance.php'#" \
+            "$RUNNER_TEMP/laravel-public/index.php"
+
+      - name: Upload Public Files
+        env:
+          HOST: ${{ secrets.CPANEL_HOST }}
+          PORT: ${{ secrets.CPANEL_PORT }}
+          USER: ${{ secrets.CPANEL_USERNAME }}
+          PUBLIC_TARGET: ${{ secrets.CPANEL_PUBLIC_TARGET }}
+        run: |
+          lftp <<EOF
+          set sftp:connect-program "ssh -a -x -i $HOME/.ssh/deploy_key -p $PORT -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o StrictHostKeyChecking=yes"
+          set sftp:auto-confirm no
+          open -u "$USER" sftp://$HOST
+
+          mirror -R --verbose \
+            "$RUNNER_TEMP/laravel-public/" "$PUBLIC_TARGET/"
+
+          bye
+          EOF
+
+      - name: Install Laravel Dependencies
+        env:
+          HOST: ${{ secrets.CPANEL_HOST }}
+          PORT: ${{ secrets.CPANEL_PORT }}
+          USER: ${{ secrets.CPANEL_USERNAME }}
+          APP_TARGET: ${{ secrets.CPANEL_TARGET }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -p "$PORT" \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            "$USER@$HOST" \
+            "cd '$APP_TARGET' && composer install --no-dev --optimize-autoloader --no-interaction"
