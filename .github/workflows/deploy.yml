@@ -45,6 +45,7 @@ jobs:
       - name: Install SFTP
         run: sudo apt-get update && sudo apt-get install -y lftp
 
+      
       - name: Upload Laravel Application
         env:
           HOST: ${{ secrets.CPANEL_HOST }}
@@ -53,9 +54,10 @@ jobs:
           APP_TARGET: ${{ secrets.CPANEL_TARGET }}
         run: |
           lftp <<EOF
-          set sftp:connect-program "ssh -a -x -i $HOME/.ssh/deploy_key -p $PORT -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o StrictHostKeyChecking=yes"
+          set cmd:fail-exit yes
+          set sftp:connect-program "ssh -a -x -i $HOME/.ssh/deploy_key -p $PORT -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o StrictHostKeyChecking=yes"
           set sftp:auto-confirm no
-          open -u "$USER" sftp://$HOST
+          open sftp://$USER@$HOST:$PORT
 
           mirror -R --verbose \
             --exclude-glob .git/ \
@@ -63,7 +65,7 @@ jobs:
             --exclude-glob .env \
             --exclude-glob vendor/ \
             --exclude-glob node_modules/ \
-            ./ "$APP_TARGET/"
+            ./quation-management/ "$APP_TARGET/"
 
           bye
           EOF
